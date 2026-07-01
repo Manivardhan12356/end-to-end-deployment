@@ -1,0 +1,21 @@
+# Python Virtual Environment
+venv/
+env/
+
+# Compiled Python files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Environment Variables
+.env
+.env.local
+
+# IDEs and Editors
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+.docker/

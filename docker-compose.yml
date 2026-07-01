@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/app
+      # Shadow host's python virtual environment so it doesn't leak into the container
+      - /app/venv
+    environment:
+      - PYTHONUNBUFFERED=1
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend:/app
+      # Shadow host's node_modules and .next to prevent platform-specific build mismatches
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend

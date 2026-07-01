@@ -1,0 +1,65 @@
+name: Enterprise CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main # Trigger the pipeline when code is pushed to the main branch
+
+env:
+  DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
+  # Add your server SSH key here for deployment
+  # SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
+
+jobs:
+  build-and-deploy:
+    name: Build, Push, and Deploy to Server
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Get the latest code from GitHub
+      - name: Checkout Code
+        uses: actions/checkout@v3
+
+      # Step 2: Log into Docker Hub (The Image Registry)
+      - name: Login to Docker Hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_HUB_USERNAME }}
+          password: ${{ secrets.DOCKER_HUB_ACCESS_TOKEN }}
+
+      # Step 3: Build and Push the Backend Image
+      - name: Build and Push Backend
+        uses: docker/build-push-action@v4
+        with:
+          context: ./backend
+          push: true
+          # We tag it with the unique GitHub commit hash so we can track exactly which code is running
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/human-backend:${{ github.sha }}, ${{ secrets.DOCKER_HUB_USERNAME }}/human-backend:latest
+
+      # Step 4: Build and Push the Frontend Image
+      - name: Build and Push Frontend
+        uses: docker/build-push-action@v4
+        with:
+          context: ./frontend
+          push: true
+          tags: ${{ secrets.DOCKER_HUB_USERNAME }}/human-frontend:${{ github.sha }}, ${{ secrets.DOCKER_HUB_USERNAME }}/human-frontend:latest
+
+      # Step 5: Deploy to Production Server
+      - name: Deploy to Server
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          script: |
+            # Pull the latest images from Docker Hub
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/human-backend:latest
+            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/human-frontend:latest
+            
+            # Stop old containers
+            docker stop backend frontend || true
+            docker rm backend frontend || true
+            
+            # Run the new containers
+            docker run -d --name backend -p 8000:8000 ${{ secrets.DOCKER_HUB_USERNAME }}/human-backend:latest
+            docker run -d --name frontend -p 3000:3000 ${{ secrets.DOCKER_HUB_USERNAME }}/human-frontend:latest
