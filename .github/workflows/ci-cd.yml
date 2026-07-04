@@ -7,12 +7,10 @@ on:
 
 env:
   DOCKER_HUB_USERNAME: ${{ secrets.DOCKER_HUB_USERNAME }}
-  # Add your server SSH key here for deployment
-  # SERVER_SSH_KEY: ${{ secrets.SERVER_SSH_KEY }}
 
 jobs:
   build-and-deploy:
-    name: Build, Push, and Deploy to Server
+    name: Build, Push, and Deploy to DigitalOcean Kubernetes
     runs-on: ubuntu-latest
 
     steps:
@@ -44,22 +42,25 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/human-frontend:${{ github.sha }}, ${{ secrets.DOCKER_HUB_USERNAME }}/human-frontend:latest
 
-      # Step 5: Deploy to Production Server
-      - name: Deploy to Server
-        uses: appleboy/ssh-action@v1.0.3
+      # Step 5: Connect to DigitalOcean Kubernetes (DOKS)
+      - name: Install DigitalOcean CLI (doctl)
+        uses: digitalocean/action-doctl@v2
         with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SERVER_SSH_KEY }}
-          script: |
-            # Pull the latest images from Docker Hub
-            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/human-backend:latest
-            docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/human-frontend:latest
-            
-            # Stop old containers
-            docker stop backend frontend || true
-            docker rm backend frontend || true
-            
-            # Run the new containers
-            docker run -d --name backend -p 8000:8000 ${{ secrets.DOCKER_HUB_USERNAME }}/human-backend:latest
-            docker run -d --name frontend -p 3000:3000 ${{ secrets.DOCKER_HUB_USERNAME }}/human-frontend:latest
+          token: ${{ secrets.DIGITALOCEAN_ACCESS_TOKEN }}
+
+      - name: Save DigitalOcean kubeconfig
+        run: doctl kubernetes cluster kubeconfig save ${{ secrets.DO_CLUSTER_NAME }}
+ 
+      # Step 6: Deploy the new images to the DOKS Cluster
+      - name: Deploy to Kubernetes
+        run: |
+          # Update the YAML files to use the brand new images we just built
+          sed -i "s|human-backend:.*|${{ secrets.DOCKER_HUB_USERNAME }}/human-backend:${{ github.sha }}|g" k8s/backend-deployment.yaml
+          sed -i "s|human-frontend:.*|${{ secrets.DOCKER_HUB_USERNAME }}/human-frontend:${{ github.sha }}|g" k8s/frontend-deployment.yaml
+          
+          # Send the YAML files to the DigitalOcean cluster
+          kubectl apply -f k8s/
+          
+          # Wait for Kubernetes to safely roll out the new pods
+          kubectl rollout status deployment/backend-deployment
+          kubectl rollout status deployment/frontend-deployment
