@@ -15,7 +15,7 @@ export default function Home() {
     setIsLoading(true);
     setError("");
     try {
-      const response = await fetch("http://localhost:8000/api/humans");
+      const response = await fetch("http://157.230.40.93:30080/api/humans");
       if (!response.ok) {
         throw new Error("Failed to fetch human details.");
       }

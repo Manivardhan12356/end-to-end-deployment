@@ -31,7 +31,7 @@ export default function HumanModal({ isOpen, onClose, onSubmitSuccess }) {
     setIsLoading(true);
 
     try {
-      const response = await fetch("http://localhost:8000/api/humans", {
+      const response = await fetch("http://157.230.40.93:30080/api/humans", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
